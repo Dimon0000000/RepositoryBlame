@@ -1,0 +1,54 @@
+name: "Code Stats Card"
+description: "Generate a contributor language contribution SVG using only GitHub Actions and git blame."
+author: "Haruko386"
+
+inputs:
+  output:
+    description: "Output SVG path."
+    required: false
+    default: "dist/code-stats.svg"
+  title:
+    description: "SVG title."
+    required: false
+    default: "Code Stats"
+  width:
+    description: "SVG width."
+    required: false
+    default: "900"
+  min-percent:
+    description: "Minimum contribution percentage to show as a full row."
+    required: false
+    default: "0.8"
+  ignore:
+    description: "Extra ignore glob patterns, one per line."
+    required: false
+    default: ""
+  users:
+    description: "Optional fallback user aliases. Format: GitHubUser=alias,email,name"
+    required: false
+    default: ""
+  github-token:
+    description: "GitHub token used to resolve blame commit SHA to GitHub user/avatar."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate code stats SVG
+      shell: bash
+      run: |
+        python3 "$GITHUB_ACTION_PATH/src/main.py"
+      env:
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_TITLE: ${{ inputs.title }}
+        INPUT_WIDTH: ${{ inputs.width }}
+        INPUT_MIN_PERCENT: ${{ inputs.min-percent }}
+        INPUT_IGNORE: ${{ inputs.ignore }}
+        INPUT_USERS: ${{ inputs.users }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ github.token }}
+
+branding:
+  icon: "bar-chart-2"
+  color: "blue"
