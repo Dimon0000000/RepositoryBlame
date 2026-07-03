@@ -31,6 +31,10 @@ inputs:
     description: "GitHub token used to resolve blame commit SHA to GitHub user/avatar."
     required: false
     default: ""
+  minor-contributors-limit:
+    description: "How many minor contributors below min-percent to show. Use a number, 0, or all."
+    required: false
+    default: "22"
 
 runs:
   using: "composite"
@@ -47,6 +51,7 @@ runs:
         INPUT_IGNORE: ${{ inputs.ignore }}
         INPUT_USERS: ${{ inputs.users }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_MINOR_CONTRIBUTORS_LIMIT: ${{ inputs.minor-contributors-limit }}
         GITHUB_TOKEN: ${{ github.token }}
 
 branding:
