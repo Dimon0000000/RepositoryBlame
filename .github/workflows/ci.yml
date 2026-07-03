@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - test
+  pull_request:
+    branches:
+      - main
+      - test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate action
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Check Python syntax
+        run: |
+          python -m py_compile src/main.py
+
+      - name: Validate action.yml
+        run: |
+          python - <<'PY'
+          import sys
+          import yaml
+          from pathlib import Path
+
+          action_file = Path("action.yml")
+          if not action_file.exists():
+              raise SystemExit("action.yml not found")
+
+          data = yaml.safe_load(action_file.read_text(encoding="utf-8"))
+
+          required_top_keys = ["name", "description", "inputs", "runs"]
+          for key in required_top_keys:
+              if key not in data:
+                  raise SystemExit(f"Missing required key in action.yml: {key}")
+
+          runs = data.get("runs", {})
+          if runs.get("using") != "composite":
+              raise SystemExit("This action should use composite runtime")
+
+          inputs = data.get("inputs", {})
+          required_inputs = [
+              "output",
+              "title",
+              "width",
+              "min-percent",
+              "github-token",
+              "ignore",
+              "users",
+              "minor-contributors-limit",
+          ]
+
+          for item in required_inputs:
+              if item not in inputs:
+                  raise SystemExit(f"Missing input in action.yml: {item}")
+
+          print("action.yml validation passed")
+          PY
+
+      - name: Unit check helper functions
+        run: |
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          spec = importlib.util.spec_from_file_location("repository_blame_main", "src/main.py")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+
+          assert module.parse_minor_contributors_limit("", default=22) == 22
+          assert module.parse_minor_contributors_limit("5", default=22) == 5
+          assert module.parse_minor_contributors_limit("0", default=22) == 0
+          assert module.parse_minor_contributors_limit("all", default=22) is None
+          assert module.parse_minor_contributors_limit("full", default=22) is None
+          assert module.parse_minor_contributors_limit("*", default=22) is None
+          assert module.parse_minor_contributors_limit("abc", default=22) == 22
+
+          assert module.get_language("main.py")[0] == "Python"
+          assert module.get_language("README.md")[0] == "Markdown"
+          assert module.get_language("Dockerfile")[0] == "Dockerfile"
+
+          print("helper function checks passed")
+          PY
+
+      - name: Run local action smoke test
+        uses: ./
+        with:
+          output: ci-output/code-stats.svg
+          title: "CI Code Stats"
+          min-percent: "0.8"
+          width: "900"
+          github-token: ${{ github.token }}
+          minor-contributors-limit: "5"
+          ignore: |
+            .git/**
+            node_modules/**
+            vendor/**
+            dist/**
+            build/**
+            target/**
+            *.lock
+          users: |
+            Haruko386=Haruko386,tryeverypossible@163.com,Wang Jiawei
+
+      - name: Verify generated SVG
+        run: |
+          test -s ci-output/code-stats.svg
+          grep -q "<svg" ci-output/code-stats.svg
+          grep -q "CI Code Stats" ci-output/code-stats.svg
+          grep -q "</svg>" ci-output/code-stats.svg
+
+      - name: Upload generated SVG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-generated-code-stats-svg
+          path: ci-output/code-stats.svg
